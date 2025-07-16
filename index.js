@@ -56,7 +56,7 @@ app.post("/generate-from-image", upload.single("image"), async (req, res) => {
     console.error("Error generating from image:", error);
     res.status(500).json({ error: "Failed to generate from image" });
   } finally {
-    fs.unlinkSync(req.file.path); // Clean up the uploaded file
+    fs.unlinkSync(req.file.path); 
   }
 });
 
