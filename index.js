@@ -1,21 +1,33 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const multer = require("multer");
+const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 dotenv.config();
+const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
 
+//? Setup Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+//? Gemini Setup 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({
-  model: "models/gemini-2.5-flash",
+  model: "gemini-2.0-flash-exp",
+  generationConfig: {
+    maxOutputTokens: 50,
+    temperature: 0.7,
+    topP: 0.8,
+  },
 });
 
 const upload = multer({ dest: "uploads/" });
-const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(
@@ -28,7 +40,7 @@ app.post("/generate-text", async (req, res) => {
 
   try {
     const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const response = result.response;
     res.json({ output: response.text() });
   } catch (error) {
     console.error("Error generating text:", error);
@@ -36,6 +48,30 @@ app.post("/generate-text", async (req, res) => {
   }
 });
 
+//! "VERSI HACKTIV"
+// const imageGenerativePart = (filePath, mimeType) => ({
+//     inlineData: {
+//         data: fs.readFileSync(filePath).toString('base64'), // Read the file and convert it to base64,
+//         mimeType: mimeType // Set the MIME type of the file
+//     }
+// })
+
+// app.post('/generate-from-image', upload.single('image'), async (req, res) => {
+//   const prompt = req.body.prompt || 'Describe the image';
+//   const image = imageToGenerativePart(req.file.path);
+
+//   try {
+//     const result = await model.generateContent([prompt, image]);
+//     const response = result.response;
+//     res.json({ output: response.text() });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   } finally {
+//     fs.unlinkSync(req.file.path);
+//   }
+// });
+
+//? VERSI DISKUSIKU DENGAN EMBAH SEPUH
 app.post("/generate-from-image", upload.single("image"), async (req, res) => {
   function imageToGenerativePart(filePath, mimeType = "image/png") {
     const buffer = fs.readFileSync(filePath);
@@ -50,13 +86,13 @@ app.post("/generate-from-image", upload.single("image"), async (req, res) => {
   const image = imageToGenerativePart(req.file.path, req.file.mimetype);
   try {
     const result = await model.generateContent([prompt, image]);
-    const response = await result.response;
+    const response = result.response;
     res.json({ output: response.text() });
   } catch (error) {
     console.error("Error generating from image:", error);
     res.status(500).json({ error: "Failed to generate from image" });
   } finally {
-    fs.unlinkSync(req.file.path); 
+    fs.unlinkSync(req.file.path);
   }
 });
 
@@ -80,13 +116,13 @@ app.post(
         "Analyze this document:",
         documentPart,
       ]);
-      const response = await result.response;
+      const response =  result.response;
       res.json({ output: response.text() });
     } catch (error) {
       console.error("Error generating from document:", error);
       res.status(500).json({ error: "Failed to generate from document" });
     } finally {
-      fs.unlinkSync(filePath); 
+      fs.unlinkSync(filePath);
     }
   }
 );
@@ -112,5 +148,25 @@ app.post("/generate-from-audio", upload.single("audio"), async (req, res) => {
     res.status(500).json({ error: "Failed to generate from audio" });
   } finally {
     fs.unlinkSync(req.file.path);
+  }
+});
+
+// Route penting!
+app.post('/api/chat', async (req, res) => {
+  const userMessage = req.body.message;
+
+  if (!userMessage) {
+    return res.status(400).json({ reply: "Message is required." });
+  }
+
+  try {
+    const result = await model.generateContent(userMessage);
+    const response = result.response;
+    const text = response.text();
+
+    res.json({ reply: text });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ reply: "Something went wrong." });
   }
 });
